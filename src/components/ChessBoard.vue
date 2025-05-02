@@ -2,7 +2,7 @@
   <div class="chess-board-container">
     <div class="player-info">
       <div class="player" :class="{ active: currentTurn === 'black' }">
-        <span class="player-name">{{ blackPlayer?.username }}</span>
+        <span class="player-name">{{ blackPlayer?.username || 'Black' }}</span>
         <span class="player-color">Black</span>
       </div>
     </div>
@@ -11,7 +11,7 @@
     
     <div class="player-info">
       <div class="player" :class="{ active: currentTurn === 'white' }">
-        <span class="player-name">{{ whitePlayer?.username }}</span>
+        <span class="player-name">{{ whitePlayer?.username || 'White' }}</span>
         <span class="player-color">White</span>
       </div>
     </div>
@@ -19,23 +19,12 @@
     <div v-if="gameStatus" class="game-status">
       {{ gameStatus }}
     </div>
-    
-    <button v-if="showEvaluation" @click="requestEvaluation" class="eval-button">
-      Evaluate Position
-    </button>
-    
-    <div v-if="evaluation" class="evaluation">
-      <p>Evaluation: {{ evaluation.evaluation }}</p>
-      <p v-if="evaluation.best_move">Best Move: {{ evaluation.best_move }}</p>
-    </div>
   </div>
 </template>
 
 <script>
 import { Chess } from 'chess.js';
 import { Chessboard } from 'cm-chessboard';
-import { MARKER_TYPE, Markers } from 'cm-chessboard/src/extensions/markers/Markers.js';
-import { Arrows, ARROW_TYPE } from 'cm-chessboard/src/extensions/arrows/Arrows.js';
 
 export default {
   name: 'ChessBoard',
@@ -46,18 +35,13 @@ export default {
     currentTurn: String,
     userColor: String,
     socket: Object,
-    initialFen: String,
-    showEvaluation: {
-      type: Boolean,
-      default: false
-    }
+    initialFen: String
   },
   data() {
     return {
       chessboard: null,
       chess: null,
-      gameStatus: null,
-      evaluation: null
+      gameStatus: null
     };
   },
   mounted() {
@@ -74,15 +58,17 @@ export default {
       
       this.chessboard = new Chessboard(this.$refs.boardElement, {
         position: this.chess.fen(),
-        orientation: this.userColor,
+        orientation: this.userColor || 'white',
         style: {
           borderType: 'thin',
-          aspectRatio: 1
+          aspectRatio: 1,
+          pieces: {
+            file: 'staunty.svg'  // Use the staunty SVG pieces
+          }
         },
-        extensions: [
-          {class: Markers, props: {autoMarkers: MARKER_TYPE.square}},
-          {class: Arrows}
-        ]
+        sprite: {
+          url: './node_modules/cm-chessboard/assets/pieces/staunty.svg'  // Specify the SVG sprite path
+        }
       });
       
       this.chessboard.enableMoveInput((event) => {
@@ -98,7 +84,7 @@ export default {
       const move = {
         from: event.squareFrom,
         to: event.squareTo,
-        promotion: event.promotion || 'q'
+        promotion: 'q'
       };
       
       try {
@@ -133,24 +119,6 @@ export default {
         }
         this.$emit('game-over', data);
       });
-    },
-    
-    async requestEvaluation() {
-      try {
-        const response = await fetch(`${process.env.VUE_APP_API_URL}/api/evaluate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fen: this.chess.fen()
-          })
-        });
-        
-        this.evaluation = await response.json();
-      } catch (error) {
-        console.error('Error evaluating position:', error);
-      }
     },
     
     getUserId() {
@@ -206,29 +174,6 @@ export default {
   margin: 20px 0;
   padding: 10px;
   background-color: #fff3e0;
-  border-radius: 5px;
-}
-
-.eval-button {
-  display: block;
-  margin: 20px auto;
-  padding: 10px 20px;
-  background-color: #2196F3;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.eval-button:hover {
-  background-color: #1976D2;
-}
-
-.evaluation {
-  text-align: center;
-  margin: 20px 0;
-  padding: 10px;
-  background-color: #f5f5f5;
   border-radius: 5px;
 }
 </style>

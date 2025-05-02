@@ -68,13 +68,21 @@ export default {
       if (!this.username) return;
       
       try {
-        const response = await fetch(`${process.env.VUE_APP_API_URL}/api/register`, {
+        // Use import.meta.env for Vite
+        const apiUrl = import.meta.env.VITE_API_URL;
+        console.log('API URL:', apiUrl); // Debug log
+        
+        const response = await fetch(`${apiUrl}/api/register`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({ username: this.username })
         });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         this.userId = data.user_id;
@@ -86,9 +94,10 @@ export default {
         console.error('Registration error:', error);
       }
     },
-    
+
     connectSocket() {
-      this.socket = io(process.env.VUE_APP_API_URL);
+      const apiUrl = import.meta.env.VITE_API_URL;
+      this.socket = io(apiUrl);
       
       this.socket.on('connect', () => {
         console.log('Connected to server');

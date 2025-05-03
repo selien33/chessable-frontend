@@ -65,18 +65,39 @@ export default {
   },
   methods: {
     initializeBoard() {
+      console.log('Initializing board with FEN:', this.initialFen);
+      
       this.chess = new Chess();
       
       if (this.initialFen) {
-        this.chess.load(this.initialFen);
+        try {
+          this.chess.load(this.initialFen);
+          console.log('FEN loaded successfully');
+        } catch (error) {
+          console.error('Error loading FEN:', error);
+          // Load default starting position if FEN fails
+          this.chess.reset();
+        }
+      } else {
+        // No initial FEN provided, use starting position
+        this.chess.reset();
       }
       
+      const currentFen = this.chess.fen();
+      console.log('Current FEN after initialization:', currentFen);
+      
       this.chessboard = new Chessboard(this.$refs.boardElement, {
-        position: this.chess.fen(),
+        position: currentFen,
         orientation: this.userColor || 'white',
         style: {
           borderType: 'thin',
-          aspectRatio: 1
+          aspectRatio: 1,
+          pieces: {
+            file: 'standard.svg'  // Explicitly set piece style
+          }
+        },
+        sprite: {
+          url: './node_modules/cm-chessboard/assets/pieces/standard.svg'
         }
       });
       
@@ -116,6 +137,7 @@ export default {
     
     setupSocketListeners() {
       this.socket.on('move_made', (data) => {
+        console.log('Move made, new FEN:', data.fen);
         this.chess.load(data.fen);
         this.chessboard.setPosition(data.fen);
         this.$emit('turn-changed', data.turn);
@@ -141,6 +163,7 @@ export default {
   },
   watch: {
     initialFen(newFen) {
+      console.log('FEN changed to:', newFen);
       if (newFen && this.chess && this.chessboard) {
         this.chess.load(newFen);
         this.chessboard.setPosition(newFen);
@@ -164,6 +187,7 @@ export default {
 .chess-board {
   width: 100%;
   margin: 20px 0;
+  min-height: 400px; /* Ensure minimum height */
 }
 
 .player-info {

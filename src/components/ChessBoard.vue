@@ -87,17 +87,7 @@ export default {
       // Get the base URL of our app
       const baseUrl = window.location.origin;
       
-      // Create the chessboard with local assets
-      this.chessboard = new Chessboard(this.$refs.boardElement, {
-        position: currentFen,
-        orientation: this.userColor || 'white',
-        style: {
-          cssClass: "default",
-          pieces: {
-            file: "staunty"
-          }
-        }
-      });
+      
       
       if (!this.readOnly) {
         this.chessboard.enableMoveInput((event) => {

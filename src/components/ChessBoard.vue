@@ -29,6 +29,7 @@
 <script>
 import { Chess } from 'chess.js';
 import { Chessboard } from 'cm-chessboard';
+import chessboardSprite from '@/assets/chessboard/chessboard-sprite.svg';
 
 export default {
   name: 'ChessBoard',
@@ -80,6 +81,7 @@ export default {
       console.log('User color:', this.userColor);
       console.log('Initial FEN:', this.initialFen);
       console.log('Board element exists:', !!this.$refs.boardElement);
+      console.log('Chessboard sprite path:', chessboardSprite);
       
       this.chess = new Chess();
       
@@ -107,7 +109,6 @@ export default {
           return;
         }
         
-        // ALTERNATIVE CONFIGURATION - MAIN DIFFERENCE HERE
         const boardConfig = {
           position: currentFen,
           orientation: this.userColor || 'white',
@@ -115,12 +116,11 @@ export default {
             cssClass: 'default',
             showCoordinates: true,
             borderType: 'thin',
-            aspectRatio: 1,
-            pieces: {
-              file: "staunty" // Use built-in piece set instead of sprite
-            }
+            aspectRatio: 1
+          },
+          sprite: {
+            url: chessboardSprite // Use local asset
           }
-          // NO sprite configuration here - this is the key difference
         };
         
         console.log('Creating chessboard with config:', boardConfig);

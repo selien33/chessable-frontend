@@ -28,8 +28,6 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { Chessboard } from 'cm-chessboard';
-import chessboardSprite from '@/assets/chessboard/chessboard-sprite.svg';
 
 export default {
   name: 'ChessBoard',
@@ -55,33 +53,25 @@ export default {
     return {
       chessboard: null,
       chess: null,
-      gameStatus: null
+      gameStatus: null,
+      Chessboard: null,
+      FEN: null
     };
   },
-  mounted() {
-    console.log('ChessBoard mounted with props:', {
-      gameId: this.gameId,
-      whitePlayer: this.whitePlayer,
-      blackPlayer: this.blackPlayer,
-      currentTurn: this.currentTurn,
-      userColor: this.userColor,
-      initialFen: this.initialFen,
-      readOnly: this.readOnly
-    });
+  async mounted() {
+    // Dynamically import the Chessboard and FEN from CDN
+    const ChessboardModule = await import('https://cdn.jsdelivr.net/npm/cm-chessboard@8/src/Chessboard.js');
+    this.Chessboard = ChessboardModule.Chessboard;
+    this.FEN = ChessboardModule.FEN;
     
     this.initializeBoard();
-    
     if (!this.readOnly) {
       this.setupSocketListeners();
     }
   },
   methods: {
     initializeBoard() {
-      console.log('=== INITIALIZING BOARD ===');
-      console.log('User color:', this.userColor);
-      console.log('Initial FEN:', this.initialFen);
-      console.log('Board element exists:', !!this.$refs.boardElement);
-      console.log('Chessboard sprite path:', chessboardSprite);
+      console.log('Initializing board with FEN:', this.initialFen);
       
       this.chess = new Chess();
       
@@ -94,72 +84,32 @@ export default {
           this.chess.reset();
         }
       } else {
-        console.log('No initial FEN provided, using default starting position');
         this.chess.reset();
       }
       
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
-      console.log('Board state:', this.chess.ascii());
       
-      try {
-        // Make sure the board element is ready
-        if (!this.$refs.boardElement) {
-          console.error('Board element not found!');
-          return;
-        }
-        
-        const boardConfig = {
-          position: currentFen,
-          orientation: this.userColor || 'white',
-          style: {
-            cssClass: 'default',
-            showCoordinates: true,
-            borderType: 'thin',
-            aspectRatio: 1
-          },
-          sprite: {
-            url: chessboardSprite // Use local asset
-          }
-        };
-        
-        console.log('Creating chessboard with config:', boardConfig);
-        
-        this.chessboard = new Chessboard(this.$refs.boardElement, boardConfig);
-        
-        console.log('Chessboard created successfully');
-        console.log('Board dimensions:', {
-          width: this.$refs.boardElement.offsetWidth,
-          height: this.$refs.boardElement.offsetHeight
-        });
-        
-        if (!this.readOnly) {
-          console.log('Enabling move input for color:', this.userColor);
-          this.chessboard.enableMoveInput((event) => {
-            console.log('Move input event:', event);
-            return this.handleMove(event);
-          }, this.userColor);
-        }
-        
-      } catch (error) {
-        console.error('Error creating chessboard:', error);
-        console.error('Stack trace:', error.stack);
+      // Use the configuration that works with the CDN version
+      this.chessboard = new this.Chessboard(this.$refs.boardElement, {
+        position: currentFen,
+        orientation: this.userColor || 'white',
+        assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/"
+      });
+      
+      if (!this.readOnly) {
+        this.chessboard.enableMoveInput((event) => {
+          return this.handleMove(event);
+        }, this.userColor);
       }
     },
     
     handleMove(event) {
-      console.log('=== HANDLE MOVE ===');
-      console.log('Move event:', event);
-      console.log('Current turn:', this.currentTurn);
-      console.log('User color:', this.userColor);
-      
       if (this.currentTurn !== this.userColor) {
-        console.log('Not user\'s turn, rejecting move');
         return false;
       }
-      
+
       if (!event.squareFrom || !event.squareTo) {
-        console.log('Invalid squares:', { from: event.squareFrom, to: event.squareTo });
         return false;
       }
       
@@ -168,64 +118,40 @@ export default {
         to: event.squareTo
       };
       
-      // Check for pawn promotion
+      // Only add promotion if it's a pawn moving to the last rank
       const piece = this.chess.get(event.squareFrom);
-      console.log('Piece at source square:', piece);
-      
       if (piece && piece.type === 'p') {
         if ((piece.color === 'w' && event.squareTo[1] === '8') ||
             (piece.color === 'b' && event.squareTo[1] === '1')) {
           move.promotion = 'q';
-          console.log('Pawn promotion detected');
         }
       }
       
       try {
-        console.log('Attempting move:', move);
         const result = this.chess.move(move);
-        
         if (result) {
-          console.log('Move successful:', result);
-          const moveString = result.from + result.to + (result.promotion || '');
-          console.log('Emitting move to server:', moveString);
-          
           this.socket.emit('make_move', {
             game_id: this.gameId,
-            move: moveString
+            move: result.from + result.to + (result.promotion || '')
           });
           return true;
-        } else {
-          console.log('Move rejected by chess.js');
         }
       } catch (e) {
-        console.error('Invalid move error:', e);
-        console.error('Move details:', move);
+        console.error('Invalid move:', e);
       }
       
       return false;
     },
     
     setupSocketListeners() {
-      console.log('Setting up socket listeners');
-      
       this.socket.on('move_made', (data) => {
-        console.log('=== MOVE MADE EVENT ===');
-        console.log('Received move data:', data);
-        
-        try {
-          this.chess.load(data.fen);
-          this.chessboard.setPosition(data.fen);
-          this.$emit('turn-changed', data.turn);
-          console.log('Board updated successfully');
-        } catch (error) {
-          console.error('Error updating board:', error);
-        }
+        console.log('Move made, new FEN:', data.fen);
+        this.chess.load(data.fen);
+        this.chessboard.setPosition(data.fen);
+        this.$emit('turn-changed', data.turn);
       });
       
       this.socket.on('game_over', (data) => {
-        console.log('=== GAME OVER EVENT ===');
-        console.log('Game over data:', data);
-        
         if (data.reason === 'checkmate') {
           this.gameStatus = `Checkmate! ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
         } else if (data.reason === 'stalemate') {
@@ -235,50 +161,26 @@ export default {
         } else if (data.reason === 'disconnect') {
           this.gameStatus = `Opponent disconnected. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
         }
-        
         this.$emit('game-over', data);
       });
     },
     
     requestEvaluation() {
-      console.log('Evaluation requested');
       this.$emit('evaluation-request');
     }
   },
-  
   watch: {
     initialFen(newFen) {
-      console.log('=== FEN CHANGED ===');
-      console.log('New FEN:', newFen);
-      
+      console.log('FEN changed to:', newFen);
       if (newFen && this.chess && this.chessboard) {
-        try {
-          this.chess.load(newFen);
-          this.chessboard.setPosition(newFen);
-          console.log('Board updated with new FEN');
-        } catch (error) {
-          console.error('Error updating board with new FEN:', error);
-        }
-      }
-    },
-    
-    userColor(newColor) {
-      console.log('=== USER COLOR CHANGED ===');
-      console.log('New color:', newColor);
-      
-      if (this.chessboard && newColor) {
-        this.chessboard.setOrientation(newColor);
-        console.log('Board orientation updated');
+        this.chess.load(newFen);
+        this.chessboard.setPosition(newFen);
       }
     }
   },
-  
   beforeUnmount() {
-    console.log('ChessBoard component unmounting');
-    
     if (this.chessboard) {
       this.chessboard.destroy();
-      console.log('Chessboard destroyed');
     }
   }
 };
@@ -301,20 +203,6 @@ export default {
 :deep(.cm-chessboard) {
   width: 100% !important;
   height: 100% !important;
-}
-
-/* Ensure pieces are visible */
-:deep(.cm-chessboard .piece) {
-  z-index: 10;
-  pointer-events: none;
-}
-
-:deep(.cm-chessboard .board) {
-  background-color: #f0d9b5;
-}
-
-:deep(.cm-chessboard .square.black) {
-  background-color: #b58863;
 }
 
 .player-info {

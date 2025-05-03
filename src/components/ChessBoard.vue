@@ -7,7 +7,13 @@
       </div>
     </div>
     
-    <div class="chess-board" id="board"></div>
+    <chessboard 
+      :fen="currentFen"
+      :orientation="userColor"
+      @onMove="handleMove"
+      :key="boardKey"
+      class="chess-board"
+    />
     
     <div class="player-info">
       <div class="player" :class="{ active: currentTurn === 'white' }">
@@ -28,11 +34,14 @@
 
 <script>
 import { Chess } from 'chess.js';
-// Import directly from the local cm-chessboard
-//import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
+import { chessboard } from 'vue-chessboard';
+import 'vue-chessboard/dist/vue-chessboard.css';
 
 export default {
   name: 'ChessBoard',
+  components: {
+    chessboard
+  },
   props: {
     gameId: String,
     whitePlayer: Object,
@@ -53,9 +62,10 @@ export default {
   emits: ['turn-changed', 'game-over', 'evaluation-request'],
   data() {
     return {
-      chessboard: null,
       chess: null,
-      gameStatus: null
+      gameStatus: null,
+      currentFen: null,
+      boardKey: 0 // Used to force re-render of the board if needed
     };
   },
   mounted() {
@@ -82,100 +92,53 @@ export default {
         this.chess.reset();
       }
       
-      const currentFen = this.chess.fen();
-      console.log('Current FEN after initialization:', currentFen);
-      
-      // Create the chessboard with explicit asset path
-      /*
-      this.chessboard = new Chessboard(document.getElementById("board"), {
-        position: currentFen,
-        orientation: this.userColor,
-        assetsUrl: "cm-chessboard/assets/",
-        style: {
-          pieces: {
-            file: "pieces/staunty.svg"
-          }
-        }
-      });
-      */
-      this.chessboard = new window.Chessboard(document.getElementById("board"), {
-        position: currentFen,
-        orientation: this.userColor,
-        pieceTheme: '/chessboardjs/img/chesspieces/wikipedia/{piece}.png',
-        draggable: !this.readOnly,
-        onDrop: this.handleMove
-      });
-      
-      if (!this.readOnly) {
-        this.chessboard.enableMoveInput((event) => {
-          return this.handleMove(event);
-        }, this.userColor);
-      }
+      this.currentFen = this.chess.fen();
+      console.log('Current FEN after initialization:', this.currentFen);
     },
     
-    /*handleMove(event) {
+    handleMove(move) {
       if (this.currentTurn !== this.userColor) {
-        return false;
+        return;
       }
 
-      if (!event.squareFrom || !event.squareTo) {
-        return false;
+      if (this.readOnly) {
+        return;
       }
-      
-      const move = {
-        from: event.squareFrom,
-        to: event.squareTo
+
+      // move format from vue-chessboard is {from: 'e2', to: 'e4', promotion: 'q'}
+      const chessMove = {
+        from: move.from,
+        to: move.to,
+        promotion: move.promotion || undefined
       };
       
-      // Check for pawn promotion
-      const piece = this.chess.get(event.squareFrom);
+      // Check if we need promotion
+      const piece = this.chess.get(move.from);
       if (piece && piece.type === 'p') {
-        if ((piece.color === 'w' && event.squareTo[1] === '8') ||
-            (piece.color === 'b' && event.squareTo[1] === '1')) {
-          move.promotion = 'q';
+        const fromRank = move.from[1];
+        const toRank = move.to[1];
+        if ((piece.color === 'w' && fromRank === '7' && toRank === '8') ||
+            (piece.color === 'b' && fromRank === '2' && toRank === '1')) {
+          chessMove.promotion = 'q'; // Default to queen promotion
         }
       }
       
       try {
-        const result = this.chess.move(move);
+        const result = this.chess.move(chessMove);
         if (result) {
+          this.currentFen = this.chess.fen();
           this.socket.emit('make_move', {
             game_id: this.gameId,
             move: result.from + result.to + (result.promotion || '')
           });
-          return true;
+        } else {
+          // Invalid move, reset to current position
+          this.boardKey++;
         }
       } catch (e) {
         console.error('Invalid move:', e);
-      }
-      
-      return false;
-    },*/
-    handleMove(source, target) {
-      if (this.currentTurn !== this.userColor) return 'snapback';
-
-      const move = {
-        from: source,
-        to: target
-      };
-
-      const piece = this.chess.get(source);
-      if (piece && piece.type === 'p') {
-        if ((piece.color === 'w' && target[1] === '8') ||
-            (piece.color === 'b' && target[1] === '1')) {
-          move.promotion = 'q';
-        }
-      }
-
-      const result = this.chess.move(move);
-      if (result) {
-        this.chessboard.position(this.chess.fen());
-        this.socket.emit('make_move', {
-          game_id: this.gameId,
-          move: result.from + result.to + (result.promotion || '')
-        });
-      } else {
-        return 'snapback'; // Illegal move
+        // Reset board to current position
+        this.boardKey++;
       }
     },
     
@@ -183,7 +146,7 @@ export default {
       this.socket.on('move_made', (data) => {
         console.log('Move made, new FEN:', data.fen);
         this.chess.load(data.fen);
-        this.chessboard.position(data.fen);
+        this.currentFen = data.fen;
         this.$emit('turn-changed', data.turn);
       });
       
@@ -205,27 +168,19 @@ export default {
       this.$emit('evaluation-request');
     }
   },
-
-
   watch: {
     initialFen(newFen) {
       console.log('FEN changed to:', newFen);
-      if (newFen && this.chess && this.chessboard) {
+      if (newFen && this.chess) {
         this.chess.load(newFen);
-        this.chessboard.position(newFen);
+        this.currentFen = newFen;
       }
-    }
-  },
-  beforeUnmount() {
-    if (this.chessboard) {
-      this.chessboard.destroy();
     }
   }
 };
 </script>
 
 <style scoped>
-/* Your existing styles */
 .chess-board-container {
   max-width: 600px;
   margin: 0 auto;
@@ -234,13 +189,6 @@ export default {
 .chess-board {
   width: 100%;
   margin: 20px 0;
-  min-height: 400px;
-  position: relative;
-}
-
-:deep(.cm-chessboard) {
-  width: 100% !important;
-  height: 100% !important;
 }
 
 .player-info {

@@ -1,18 +1,25 @@
 {
-    "navigationFallback": {
-      "rewrite": "/index.html",
-      "exclude": ["*.{css,scss,js,png,gif,ico,jpg,svg}"]
+  "globalHeaders": {
+    "Content-Security-Policy": "default-src 'self' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://test-chessable-webapp-e4crdvgmctcfe3a2.switzerlandnorth-01.azurewebsites.net wss://test-chessable-webapp-e4crdvgmctcfe3a2.switzerlandnorth-01.azurewebsites.net; frame-src 'none'; object-src 'none';",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block"
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous"]
     },
-    "routes": [
-      {
-        "route": "/*",
-        "allowedRoles": ["anonymous"]
-      }
-    ],
-    "globalHeaders": {
-      "content-security-policy": "default-src https: 'unsafe-eval' 'unsafe-inline'; object-src 'none'"
-    },
-    "mimeTypes": {
-      ".json": "text/json"
+    {
+      "route": "/socket.io/*",
+      "allowedRoles": ["anonymous"]
     }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/api/*", "/socket.io/*"]
+  },
+  "platform": {
+    "apiRuntime": "node:18"
   }
+}

@@ -56,11 +56,29 @@ export default {
 
     const connectSocket = () => {
       socket.value = io(import.meta.env.VITE_API_URL, {
-        withCredentials: true
+        withCredentials: true,
+        transports: ['polling', 'websocket'],  // Try polling first, then upgrade to websocket
+        path: '/socket.io/',
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
       });
-      
+
       socket.value.on('connect', () => {
         console.log('Connected to server');
+      });
+      
+      // Add error handling
+      socket.value.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+      });
+
+      socket.value.on('error', (error) => {
+        console.error('Socket error:', error);
+        if (error.message === 'Not authenticated') {
+          router.push('/login');
+        }
       });
       
       socket.value.on('game_started', (data) => {

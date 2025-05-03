@@ -28,7 +28,8 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { Chessboard } from 'cm-chessboard';
+// Import directly from the local cm-chessboard
+import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
 
 export default {
   name: 'ChessBoard',
@@ -84,10 +85,18 @@ export default {
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
       
-      // Get the base URL of our app
-      const baseUrl = window.location.origin;
-      
-      
+      // Create the chessboard with explicit asset path
+      this.chessboard = new Chessboard(this.$refs.boardElement, {
+        position: currentFen,
+        orientation: this.userColor || 'white',
+        assetsUrl: "/cm-chessboard/assets/",
+        style: {
+          cssClass: "default",
+          pieces: {
+            file: "staunty"
+          }
+        }
+      });
       
       if (!this.readOnly) {
         this.chessboard.enableMoveInput((event) => {
@@ -179,6 +188,7 @@ export default {
 </script>
 
 <style scoped>
+/* Your existing styles */
 .chess-board-container {
   max-width: 600px;
   margin: 0 auto;
@@ -191,15 +201,9 @@ export default {
   position: relative;
 }
 
-/* Ensure the chessboard fills its container */
 :deep(.cm-chessboard) {
   width: 100% !important;
   height: 100% !important;
-}
-
-/* Ensure pieces are visible */
-:deep(.cm-chessboard .piece) {
-  z-index: 10;
 }
 
 .player-info {

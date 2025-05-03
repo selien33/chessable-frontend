@@ -29,7 +29,7 @@
 <script>
 import { Chess } from 'chess.js';
 // Import directly from the local cm-chessboard
-import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
+import { Chessboard, FEN } from '/cm-chessboard/src/Chessboard.js';
 
 export default {
   name: 'ChessBoard',
@@ -84,18 +84,13 @@ export default {
       
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
+      console.log('Current FEN after initialization:', FEN.start);
       
       // Create the chessboard with explicit asset path
       this.chessboard = new Chessboard(this.$refs.boardElement, {
         position: currentFen,
-        orientation: this.userColor || 'white',
+        orientation: this.userColor,
         assetsUrl: "/cm-chessboard/assets/",
-        style: {
-          cssClass: "default",
-          pieces: {
-            file: "staunty"
-          }
-        }
       });
       
       if (!this.readOnly) {

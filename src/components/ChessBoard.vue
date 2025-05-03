@@ -6,7 +6,6 @@
         <span class="player-color">Black</span>
       </div>
     </div>
-    <img src="/cm-chessboard/assets/pieces/standard.svg" width="60">
     
     <div class="chess-board" ref="boardElement"></div>
     
@@ -30,7 +29,7 @@
 <script>
 import { Chess } from 'chess.js';
 // Import directly from the local cm-chessboard
-import { Chessboard, FEN } from '/cm-chessboard/src/Chessboard.js';
+import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
 
 export default {
   name: 'ChessBoard',
@@ -85,13 +84,17 @@ export default {
       
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
-      console.log('Current FEN after initialization:', FEN);
       
       // Create the chessboard with explicit asset path
       this.chessboard = new Chessboard(this.$refs.boardElement, {
         position: currentFen,
         orientation: this.userColor,
-        assetsUrl: "/cm-chessboard/assets/",
+        assetsUrl: "cm-chessboard/assets/",
+        style: {
+          pieces: {
+            file: "pieces/staunty.svg"
+          }
+        }
       });
       
       if (!this.readOnly) {

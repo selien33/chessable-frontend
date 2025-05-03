@@ -19,6 +19,10 @@
     <div v-if="gameStatus" class="game-status">
       {{ gameStatus }}
     </div>
+    
+    <button v-if="showEvaluation" @click="requestEvaluation" class="eval-button">
+      Evaluate Position
+    </button>
   </div>
 </template>
 
@@ -35,8 +39,17 @@ export default {
     currentTurn: String,
     userColor: String,
     socket: Object,
-    initialFen: String
+    initialFen: String,
+    showEvaluation: {
+      type: Boolean,
+      default: false
+    },
+    readOnly: {
+      type: Boolean,
+      default: false
+    }
   },
+  emits: ['turn-changed', 'game-over', 'evaluation-request'],
   data() {
     return {
       chessboard: null,
@@ -46,7 +59,9 @@ export default {
   },
   mounted() {
     this.initializeBoard();
-    this.setupSocketListeners();
+    if (!this.readOnly) {
+      this.setupSocketListeners();
+    }
   },
   methods: {
     initializeBoard() {
@@ -61,19 +76,15 @@ export default {
         orientation: this.userColor || 'white',
         style: {
           borderType: 'thin',
-          aspectRatio: 1,
-          pieces: {
-            file: 'staunty.svg'  // Use the staunty SVG pieces
-          }
-        },
-        sprite: {
-          url: './node_modules/cm-chessboard/assets/pieces/staunty.svg'  // Specify the SVG sprite path
+          aspectRatio: 1
         }
       });
       
-      this.chessboard.enableMoveInput((event) => {
-        return this.handleMove(event);
-      }, this.userColor);
+      if (!this.readOnly) {
+        this.chessboard.enableMoveInput((event) => {
+          return this.handleMove(event);
+        }, this.userColor);
+      }
     },
     
     handleMove(event) {
@@ -92,7 +103,6 @@ export default {
         if (result) {
           this.socket.emit('make_move', {
             game_id: this.gameId,
-            user_id: this.getUserId(),
             move: result.from + result.to + (result.promotion || '')
           });
           return true;
@@ -116,13 +126,25 @@ export default {
           this.gameStatus = `Checkmate! ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
         } else if (data.reason === 'stalemate') {
           this.gameStatus = 'Stalemate! The game is a draw.';
+        } else if (data.reason === 'abandon') {
+          this.gameStatus = `Game abandoned. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+        } else if (data.reason === 'disconnect') {
+          this.gameStatus = `Opponent disconnected. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
         }
         this.$emit('game-over', data);
       });
     },
     
-    getUserId() {
-      return localStorage.getItem('user_id');
+    requestEvaluation() {
+      this.$emit('evaluation-request');
+    }
+  },
+  watch: {
+    initialFen(newFen) {
+      if (newFen && this.chess && this.chessboard) {
+        this.chess.load(newFen);
+        this.chessboard.setPosition(newFen);
+      }
     }
   },
   beforeUnmount() {
@@ -175,5 +197,20 @@ export default {
   padding: 10px;
   background-color: #fff3e0;
   border-radius: 5px;
+}
+
+.eval-button {
+  display: block;
+  margin: 20px auto;
+  padding: 10px 20px;
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.eval-button:hover {
+  background-color: #1976D2;
 }
 </style>

@@ -92,12 +92,10 @@ export default {
         style: {
           borderType: 'thin',
           aspectRatio: 1,
-          pieces: {
-            file: 'standard.svg'  // Explicitly set piece style
-          }
         },
+        // Update sprite url to use the correct path
         sprite: {
-          url: './node_modules/cm-chessboard/assets/pieces/standard.svg'
+          url: "https://cdn.jsdelivr.net/npm/cm-chessboard@8.5.0/assets/images/chessboard-sprite.svg"
         }
       });
       
@@ -113,11 +111,24 @@ export default {
         return false;
       }
       
+      // Ensure we have valid squares
+      if (!event.squareFrom || !event.squareTo) {
+        return false;
+      }
+      
       const move = {
         from: event.squareFrom,
-        to: event.squareTo,
-        promotion: 'q'
+        to: event.squareTo
       };
+      
+      // Only add promotion if it's a pawn moving to the last rank
+      const piece = this.chess.get(event.squareFrom);
+      if (piece && piece.type === 'p') {
+        if ((piece.color === 'w' && event.squareTo[1] === '8') ||
+            (piece.color === 'b' && event.squareTo[1] === '1')) {
+          move.promotion = 'q';
+        }
+      }
       
       try {
         const result = this.chess.move(move);

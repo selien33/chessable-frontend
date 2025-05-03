@@ -110,7 +110,7 @@ export default {
       if (this.currentTurn !== this.userColor) {
         return false;
       }
-      
+
       // Ensure we have valid squares
       if (!event.squareFrom || !event.squareTo) {
         return false;
@@ -198,7 +198,19 @@ export default {
 .chess-board {
   width: 100%;
   margin: 20px 0;
-  min-height: 400px; /* Ensure minimum height */
+  min-height: 400px;
+  position: relative; /* Important for chessboard positioning */
+}
+
+/* Ensure the chessboard fills its container */
+:deep(.cm-chessboard) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Fix piece visibility */
+:deep(.cm-chessboard .piece) {
+  z-index: 10;
 }
 
 .player-info {

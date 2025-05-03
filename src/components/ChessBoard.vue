@@ -29,7 +29,7 @@
 <script>
 import { Chess } from 'chess.js';
 // Import directly from the local cm-chessboard
-import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
+//import { Chessboard } from '/cm-chessboard/src/Chessboard.js';
 
 export default {
   name: 'ChessBoard',
@@ -86,15 +86,24 @@ export default {
       console.log('Current FEN after initialization:', currentFen);
       
       // Create the chessboard with explicit asset path
+      /*
       this.chessboard = new Chessboard(document.getElementById("board"), {
         position: currentFen,
         orientation: this.userColor,
-        assetsUrl: "../../cm-chessboard/assets/",
+        assetsUrl: "cm-chessboard/assets/",
         style: {
           pieces: {
             file: "pieces/staunty.svg"
           }
         }
+      });
+      */
+      this.chessboard = new window.Chessboard(document.getElementById("board"), {
+        position: currentFen,
+        orientation: this.userColor,
+        pieceTheme: '/chessboardjs/img/chesspieces/wikipedia/{piece}.png',
+        draggable: !this.readOnly,
+        onDrop: this.handleMove
       });
       
       if (!this.readOnly) {
@@ -104,7 +113,7 @@ export default {
       }
     },
     
-    handleMove(event) {
+    /*handleMove(event) {
       if (this.currentTurn !== this.userColor) {
         return false;
       }
@@ -141,13 +150,40 @@ export default {
       }
       
       return false;
+    },*/
+    handleMove(source, target) {
+      if (this.currentTurn !== this.userColor) return 'snapback';
+
+      const move = {
+        from: source,
+        to: target
+      };
+
+      const piece = this.chess.get(source);
+      if (piece && piece.type === 'p') {
+        if ((piece.color === 'w' && target[1] === '8') ||
+            (piece.color === 'b' && target[1] === '1')) {
+          move.promotion = 'q';
+        }
+      }
+
+      const result = this.chess.move(move);
+      if (result) {
+        this.chessboard.position(this.chess.fen());
+        this.socket.emit('make_move', {
+          game_id: this.gameId,
+          move: result.from + result.to + (result.promotion || '')
+        });
+      } else {
+        return 'snapback'; // Illegal move
+      }
     },
     
     setupSocketListeners() {
       this.socket.on('move_made', (data) => {
         console.log('Move made, new FEN:', data.fen);
         this.chess.load(data.fen);
-        this.chessboard.setPosition(data.fen);
+        this.chessboard.position(data.fen);
         this.$emit('turn-changed', data.turn);
       });
       
@@ -169,12 +205,14 @@ export default {
       this.$emit('evaluation-request');
     }
   },
+
+
   watch: {
     initialFen(newFen) {
       console.log('FEN changed to:', newFen);
       if (newFen && this.chess && this.chessboard) {
         this.chess.load(newFen);
-        this.chessboard.setPosition(newFen);
+        this.chessboard.position(newFen);
       }
     }
   },

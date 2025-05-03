@@ -28,6 +28,8 @@
 
 <script>
 import { Chess } from 'chess.js';
+// Import the local Chessboard.js file
+import { Chessboard, FEN } from '../assets/Chessboard.js';
 
 export default {
   name: 'ChessBoard',
@@ -53,17 +55,10 @@ export default {
     return {
       chessboard: null,
       chess: null,
-      gameStatus: null,
-      Chessboard: null,
-      FEN: null
+      gameStatus: null
     };
   },
-  async mounted() {
-    // Dynamically import the Chessboard and FEN from CDN
-    const ChessboardModule = await import('https://cdn.jsdelivr.net/npm/cm-chessboard@8/src/Chessboard.js');
-    this.Chessboard = ChessboardModule.Chessboard;
-    this.FEN = ChessboardModule.FEN;
-    
+  mounted() {
     this.initializeBoard();
     if (!this.readOnly) {
       this.setupSocketListeners();
@@ -90,11 +85,17 @@ export default {
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
       
-      // Use the configuration that works with the CDN version
-      this.chessboard = new this.Chessboard(this.$refs.boardElement, {
+      // Use the local assets path
+      this.chessboard = new Chessboard(this.$refs.boardElement, {
         position: currentFen,
         orientation: this.userColor || 'white',
-        assetsUrl: "https://cdn.jsdelivr.net/npm/cm-chessboard@8/assets/"
+        assetsUrl: "/src/assets/",  // Point to your local assets folder
+        style: {
+          cssClass: "default",
+          pieces: {
+            file: "staunty"  // This should match your pieces folder structure
+          }
+        }
       });
       
       if (!this.readOnly) {

@@ -28,8 +28,7 @@
 
 <script>
 import { Chess } from 'chess.js';
-// Import the local Chessboard.js file
-import { Chessboard, FEN } from '../assets/Chessboard.js';
+import { Chessboard } from 'cm-chessboard';
 
 export default {
   name: 'ChessBoard',
@@ -85,15 +84,17 @@ export default {
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
       
-      // Use the local assets path
+      // Get the base URL of our app
+      const baseUrl = window.location.origin;
+      
+      // Create the chessboard with local assets
       this.chessboard = new Chessboard(this.$refs.boardElement, {
         position: currentFen,
         orientation: this.userColor || 'white',
-        assetsUrl: "/src/assets/",  // Point to your local assets folder
         style: {
           cssClass: "default",
           pieces: {
-            file: "staunty"  // This should match your pieces folder structure
+            file: "staunty"
           }
         }
       });
@@ -119,7 +120,7 @@ export default {
         to: event.squareTo
       };
       
-      // Only add promotion if it's a pawn moving to the last rank
+      // Check for pawn promotion
       const piece = this.chess.get(event.squareFrom);
       if (piece && piece.type === 'p') {
         if ((piece.color === 'w' && event.squareTo[1] === '8') ||
@@ -204,6 +205,11 @@ export default {
 :deep(.cm-chessboard) {
   width: 100% !important;
   height: 100% !important;
+}
+
+/* Ensure pieces are visible */
+:deep(.cm-chessboard .piece) {
+  z-index: 10;
 }
 
 .player-info {

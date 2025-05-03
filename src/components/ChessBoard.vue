@@ -7,7 +7,7 @@
       </div>
     </div>
     
-    <div class="chess-board" ref="boardElement"></div>
+    <div class="chess-board" id="board"></div>
     
     <div class="player-info">
       <div class="player" :class="{ active: currentTurn === 'white' }">
@@ -86,7 +86,7 @@ export default {
       console.log('Current FEN after initialization:', currentFen);
       
       // Create the chessboard with explicit asset path
-      this.chessboard = new Chessboard(this.$refs.boardElement, {
+      this.chessboard = new Chessboard(document.getElementById("board"), {
         position: currentFen,
         orientation: this.userColor,
         assetsUrl: "cm-chessboard/assets/",

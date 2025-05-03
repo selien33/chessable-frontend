@@ -6,6 +6,7 @@
         <span class="player-color">Black</span>
       </div>
     </div>
+    <img src="/cm-chessboard/assets/pieces/standard.svg" width="60">
     
     <div class="chess-board" ref="boardElement"></div>
     
@@ -84,7 +85,7 @@ export default {
       
       const currentFen = this.chess.fen();
       console.log('Current FEN after initialization:', currentFen);
-      console.log('Current FEN after initialization:', FEN.start);
+      console.log('Current FEN after initialization:', FEN);
       
       // Create the chessboard with explicit asset path
       this.chessboard = new Chessboard(this.$refs.boardElement, {

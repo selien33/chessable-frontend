@@ -89,7 +89,7 @@ export default {
       this.chessboard = new Chessboard(document.getElementById("board"), {
         position: currentFen,
         orientation: this.userColor,
-        assetsUrl: "cm-chessboard/assets/",
+        assetsUrl: "../../cm-chessboard/assets/",
         style: {
           pieces: {
             file: "pieces/staunty.svg"

@@ -257,24 +257,19 @@ export default {
       });
       
       props.socket.on('game_over', (data) => {
-        // Set game status message
-        if (data.reason === 'checkmate') {
-          gameStatus.value = `Checkmate! ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
-        } else if (data.reason === 'stalemate') {
-          gameStatus.value = 'Stalemate! The game is a draw.';
-        } else if (data.reason === 'abandon') {
-          gameStatus.value = `Game abandoned. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
-        } else if (data.reason === 'disconnect') {
-          gameStatus.value = `Opponent disconnected. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
-        }
-        
-        // Disable input immediately
-        board.value.disableMoveInput();
-        
-        // Wait for the board animation to complete and give users time to see the final position
+        // Defer game over message slightly to ensure move is displayed
         setTimeout(() => {
-          emit('game-over', data);
-        }, 2000); // 2 second delay to see the checkmate position
+          if (data.reason === 'checkmate') {
+            this.gameStatus = `Checkmate! ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          } else if (data.reason === 'stalemate') {
+            this.gameStatus = 'Stalemate! The game is a draw.';
+          } else if (data.reason === 'abandon') {
+            this.gameStatus = `Game abandoned. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          } else if (data.reason === 'disconnect') {
+            this.gameStatus = `Opponent disconnected. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          }
+          this.$emit('game-over', data);
+        }, 300); // wait 300ms after move update
       });
     };
     

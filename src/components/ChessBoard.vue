@@ -32,8 +32,8 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { Chessboard, INPUT_EVENT_TYPE, COLOR, MARKER_TYPE, BORDER_TYPE } from 'cm-chessboard';
-import { Markers } from 'cm-chessboard/src/extensions/markers/Markers.js';
+import { Chessboard, INPUT_EVENT_TYPE, COLOR, BORDER_TYPE } from 'cm-chessboard';
+import { Markers, MARKER_TYPE} from 'cm-chessboard/src/extensions/markers/Markers.js';
 import { PromotionDialog, PROMOTION_DIALOG_RESULT_TYPE } from 'cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js';
 import 'cm-chessboard/assets/chessboard.css';
 import 'cm-chessboard/assets/extensions/markers/markers.css';

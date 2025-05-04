@@ -7,13 +7,7 @@
       </div>
     </div>
     
-    <chessboard 
-      :fen="currentFen"
-      :orientation="userColor"
-      @onMove="handleMove"
-      :key="boardKey"
-      class="chess-board"
-    />
+    <div ref="boardElement" class="chess-board"></div>
     
     <div class="player-info">
       <div class="player" :class="{ active: currentTurn === 'white' }">
@@ -34,14 +28,12 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { chessboard } from 'vue-chessboard';
-import 'vue-chessboard/dist/vue-chessboard.css';
+import { Chessboard, MARKER_TYPE } from 'cm-chessboard';
+import 'cm-chessboard/assets/chessboard.css';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 
 export default {
   name: 'ChessBoard',
-  components: {
-    chessboard
-  },
   props: {
     gameId: String,
     whitePlayer: Object,
@@ -60,122 +52,151 @@ export default {
     }
   },
   emits: ['turn-changed', 'game-over', 'evaluation-request'],
-  data() {
-    return {
-      chess: null,
-      gameStatus: null,
-      currentFen: null,
-      boardKey: 0 // Used to force re-render of the board if needed
-    };
-  },
-  mounted() {
-    this.initializeBoard();
-    if (!this.readOnly) {
-      this.setupSocketListeners();
-    }
-  },
-  methods: {
-    initializeBoard() {
-      console.log('Initializing board with FEN:', this.initialFen);
+  setup(props, { emit }) {
+    const boardElement = ref(null);
+    const chess = ref(null);
+    const board = ref(null);
+    const gameStatus = ref(null);
+    const currentFen = ref(props.initialFen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    
+    const initializeBoard = () => {
+      console.log('Initializing board with FEN:', currentFen.value);
       
-      this.chess = new Chess();
+      chess.value = new Chess();
       
-      if (this.initialFen) {
+      if (currentFen.value) {
         try {
-          this.chess.load(this.initialFen);
+          chess.value.load(currentFen.value);
           console.log('FEN loaded successfully');
         } catch (error) {
           console.error('Error loading FEN:', error);
-          this.chess.reset();
+          chess.value.reset();
         }
       } else {
-        this.chess.reset();
+        chess.value.reset();
       }
       
-      this.currentFen = this.chess.fen();
-      console.log('Current FEN after initialization:', this.currentFen);
-    },
+      // Initialize cm-chessboard with corrected configuration
+      board.value = new Chessboard(boardElement.value, {
+        position: chess.value.fen(),
+        orientation: props.userColor,
+        style: {
+          pieces: {
+            file: '/node_modules/cm-chessboard/assets/pieces/staunty.svg'
+          }
+        }
+      });
+      
+      currentFen.value = chess.value.fen();
+      console.log('Current FEN after initialization:', currentFen.value);
+      
+      // Enable piece dragging if not read-only
+      if (!props.readOnly) {
+        board.value.enableMoveInput((event) => {
+          // Handle move input here
+          return moveInputHandler(event);
+        });
+      }
+    };
     
-    handleMove(move) {
-      if (this.currentTurn !== this.userColor) {
-        return;
+    const moveInputHandler = (event) => {
+      // Only allow moves if it's the user's turn
+      if (props.currentTurn !== props.userColor) {
+        return false;
       }
-
-      if (this.readOnly) {
-        return;
-      }
-
-      // move format from vue-chessboard is {from: 'e2', to: 'e4', promotion: 'q'}
-      const chessMove = {
-        from: move.from,
-        to: move.to,
-        promotion: move.promotion || undefined
+      
+      const move = {
+        from: event.squareFrom,
+        to: event.squareTo,
+        promotion: event.piece ? event.piece.charAt(1) : undefined
       };
       
-      // Check if we need promotion
-      const piece = this.chess.get(move.from);
+      // Check if promotion is needed
+      const piece = chess.value.get(move.from);
       if (piece && piece.type === 'p') {
-        const fromRank = move.from[1];
         const toRank = move.to[1];
-        if ((piece.color === 'w' && fromRank === '7' && toRank === '8') ||
-            (piece.color === 'b' && fromRank === '2' && toRank === '1')) {
-          chessMove.promotion = 'q'; // Default to queen promotion
+        if ((piece.color === 'w' && toRank === '8') || 
+            (piece.color === 'b' && toRank === '1')) {
+          move.promotion = 'q'; // Default to queen promotion
         }
       }
       
       try {
-        const result = this.chess.move(chessMove);
+        const result = chess.value.move(move);
         if (result) {
-          this.currentFen = this.chess.fen();
-          this.socket.emit('make_move', {
-            game_id: this.gameId,
+          currentFen.value = chess.value.fen();
+          
+          props.socket.emit('make_move', {
+            game_id: props.gameId,
             move: result.from + result.to + (result.promotion || '')
           });
-        } else {
-          // Invalid move, reset to current position
-          this.boardKey++;
+          
+          return true;
         }
       } catch (e) {
         console.error('Invalid move:', e);
-        // Reset board to current position
-        this.boardKey++;
       }
-    },
+      
+      return false;
+    };
     
-    setupSocketListeners() {
-      this.socket.on('move_made', (data) => {
+    const setupSocketListeners = () => {
+      props.socket.on('move_made', (data) => {
         console.log('Move made, new FEN:', data.fen);
-        this.chess.load(data.fen);
-        this.currentFen = data.fen;
-        this.$emit('turn-changed', data.turn);
+        chess.value.load(data.fen);
+        currentFen.value = data.fen;
+        board.value.setPosition(currentFen.value);
+        emit('turn-changed', data.turn);
       });
       
-      this.socket.on('game_over', (data) => {
+      props.socket.on('game_over', (data) => {
         if (data.reason === 'checkmate') {
-          this.gameStatus = `Checkmate! ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          gameStatus.value = `Checkmate! ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         } else if (data.reason === 'stalemate') {
-          this.gameStatus = 'Stalemate! The game is a draw.';
+          gameStatus.value = 'Stalemate! The game is a draw.';
         } else if (data.reason === 'abandon') {
-          this.gameStatus = `Game abandoned. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          gameStatus.value = `Game abandoned. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         } else if (data.reason === 'disconnect') {
-          this.gameStatus = `Opponent disconnected. ${data.winner === this.whitePlayer.id ? 'White' : 'Black'} wins!`;
+          gameStatus.value = `Opponent disconnected. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         }
-        this.$emit('game-over', data);
+        emit('game-over', data);
       });
-    },
+    };
     
-    requestEvaluation() {
-      this.$emit('evaluation-request');
-    }
-  },
-  watch: {
-    initialFen(newFen) {
+    const requestEvaluation = () => {
+      emit('evaluation-request');
+    };
+    
+    // Watch for initialFen changes
+    watch(() => props.initialFen, (newFen) => {
       console.log('FEN changed to:', newFen);
-      if (newFen && this.chess) {
-        this.chess.load(newFen);
-        this.currentFen = newFen;
+      if (newFen && chess.value) {
+        chess.value.load(newFen);
+        currentFen.value = newFen;
+        if (board.value) {
+          board.value.setPosition(newFen);
+        }
       }
-    }
+    });
+    
+    onMounted(() => {
+      initializeBoard();
+      if (!props.readOnly) {
+        setupSocketListeners();
+      }
+    });
+    
+    onBeforeUnmount(() => {
+      if (board.value) {
+        board.value.destroy();
+      }
+    });
+    
+    return {
+      boardElement,
+      gameStatus,
+      requestEvaluation
+    };
   }
 };
 </script>
@@ -188,7 +209,26 @@ export default {
 
 .chess-board {
   width: 100%;
+  max-width: 600px;
   margin: 20px 0;
+}
+
+/* Some additional styles for proper rendering */
+.chess-board :deep(.cm-chessboard) {
+  width: 100% !important;
+  border: 2px solid #333;
+  border-radius: 4px;
+}
+
+.chess-board :deep(.cm-chessboard .board) {
+  width: 100%;
+}
+
+.chess-board :deep(.cm-chessboard .board .square) {
+  float: left;
+  position: relative;
+  width: 12.5%;
+  height: 12.5%;
 }
 
 .player-info {

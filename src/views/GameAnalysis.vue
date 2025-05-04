@@ -1,4 +1,4 @@
-    <template>
+<template>
   <div class="game-analysis">
     <h1>Game Analysis</h1>
     
@@ -18,6 +18,7 @@
           :initial-fen="currentFen"
           :read-only="true"
           :show-evaluation="true"
+          user-color="white"
           @evaluation-request="requestEvaluation"
         />
       </div>
@@ -54,7 +55,7 @@
 </template>
 
 <script>
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Chess } from 'chess.js';
 import ChessBoard from '../components/ChessBoard.vue';
@@ -73,7 +74,7 @@ export default {
     const chess = ref(new Chess());
     const moves = ref([]);
     const currentMoveIndex = ref(0);
-    const currentFen = ref('');
+    const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const evaluation = ref(null);
 
     const fetchGame = async () => {
@@ -140,7 +141,11 @@ export default {
 
     const previousMove = () => {
       if (currentMoveIndex.value > 0) {
-        chess.value.undo();
+        // Rebuild the position from the start
+        chess.value.reset();
+        for (let i = 0; i < currentMoveIndex.value - 1; i++) {
+          chess.value.move(moves.value[i]);
+        }
         currentMoveIndex.value--;
         currentFen.value = chess.value.fen();
         evaluation.value = null;

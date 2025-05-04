@@ -1,36 +1,40 @@
 <template>
   <div class="game-lobby">
-    <div v-if="!gameId" class="waiting">
-      <h2>Game Lobby</h2>
-      <div v-if="!isWaiting">
-        <button @click="joinWaitingList" class="join-button">Find Opponent</button>
+    <div v-if="loading" class="loading">Loading...</div>
+    <div v-else-if="!currentUser" class="error">Please log in to play</div>
+    <div v-else>
+      <div v-if="!gameId" class="waiting">
+        <h2>Game Lobby</h2>
+        <div v-if="!isWaiting">
+          <button @click="joinWaitingList" class="join-button">Find Opponent</button>
+        </div>
+        <div v-else class="waiting-animation">
+          <div class="spinner"></div>
+          <p>Waiting for opponent...</p>
+          <button @click="leaveWaitingList" class="cancel-button">Cancel</button>
+        </div>
       </div>
-      <div v-else class="waiting-animation">
-        <div class="spinner"></div>
-        <p>Waiting for opponent...</p>
-        <button @click="leaveWaitingList" class="cancel-button">Cancel</button>
+      
+      <div v-else class="game">
+        <ChessBoard
+          :game-id="gameId"
+          :white-player="whitePlayer"
+          :black-player="blackPlayer"
+          :current-turn="currentTurn"
+          :user-color="userColor"
+          :socket="socket"
+          :initial-fen="initialFen"
+          @turn-changed="updateTurn"
+          @game-over="handleGameOver"
+        />
+        <button @click="abandonGame" class="abandon-button">Abandon Game</button>
       </div>
-    </div>
-    
-    <div v-else class="game">
-      <ChessBoard
-        :game-id="gameId"
-        :white-player="whitePlayer"
-        :black-player="blackPlayer"
-        :current-turn="currentTurn"
-        :user-color="userColor"
-        :socket="socket"
-        :initial-fen="initialFen"
-        @turn-changed="updateTurn"
-        @game-over="handleGameOver"
-      />
-      <button @click="abandonGame" class="abandon-button">Abandon Game</button>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount, inject } from 'vue';
+import { ref, onMounted, onBeforeUnmount, inject, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { io } from 'socket.io-client';
 import ChessBoard from '../components/ChessBoard.vue';
@@ -44,6 +48,8 @@ export default {
     const router = useRouter();
     const auth = inject('auth');
     
+    const loading = ref(true);
+    const currentUser = ref(null);
     const isWaiting = ref(false);
     const gameId = ref(null);
     const whitePlayer = ref(null);
@@ -57,7 +63,7 @@ export default {
     const connectSocket = () => {
       socket.value = io(import.meta.env.VITE_API_URL, {
         withCredentials: true,
-        transports: ['polling', 'websocket'],  // Try polling first, then upgrade to websocket
+        transports: ['polling', 'websocket'],
         path: '/socket.io/',
         autoConnect: true,
         reconnection: true,
@@ -69,7 +75,6 @@ export default {
         console.log('Connected to server');
       });
       
-      // Add error handling
       socket.value.on('connect_error', (error) => {
         console.error('Socket connection error:', error);
       });
@@ -85,7 +90,7 @@ export default {
         gameId.value = data.game_id;
         whitePlayer.value = data.white;
         blackPlayer.value = data.black;
-        userColor.value = data.white.id === auth.currentUser.value.user_id ? 'white' : 'black';
+        userColor.value = data.white.id === currentUser.value.user_id ? 'white' : 'black';
         initialFen.value = data.fen;
         isWaiting.value = false;
         startHeartbeat();
@@ -93,10 +98,6 @@ export default {
       
       socket.value.on('waiting_for_opponent', () => {
         isWaiting.value = true;
-      });
-      
-      socket.value.on('error', (error) => {
-        console.error('Socket error:', error);
       });
     };
 
@@ -107,8 +108,6 @@ export default {
     };
 
     const leaveWaitingList = () => {
-      // For now, just set isWaiting to false
-      // You might want to implement a proper leave endpoint
       isWaiting.value = false;
     };
 
@@ -132,7 +131,7 @@ export default {
 
     const handleGameOver = (data) => {
       let message = 'Game Over! ';
-      if (data.winner === auth.currentUser.value.user_id) {
+      if (data.winner === currentUser.value.user_id) {
         message += 'You won!';
       } else if (data.winner) {
         message += 'You lost.';
@@ -145,8 +144,22 @@ export default {
       router.push('/');
     };
 
+    // Watch for auth changes
+    watch(() => auth.currentUser.value, (newUser) => {
+      currentUser.value = newUser;
+      loading.value = false;
+      if (newUser && !socket.value) {
+        connectSocket();
+      }
+    }, { immediate: true });
+
     onMounted(() => {
-      connectSocket();
+      // If currentUser is already available, connect socket
+      if (auth.currentUser.value) {
+        currentUser.value = auth.currentUser.value;
+        loading.value = false;
+        connectSocket();
+      }
     });
 
     onBeforeUnmount(() => {
@@ -159,6 +172,8 @@ export default {
     });
 
     return {
+      loading,
+      currentUser,
       isWaiting,
       gameId,
       whitePlayer,
@@ -182,6 +197,19 @@ export default {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
+}
+
+.loading {
+  text-align: center;
+  margin-top: 50px;
+  font-size: 18px;
+}
+
+.error {
+  text-align: center;
+  margin-top: 50px;
+  color: #f44336;
+  font-size: 18px;
 }
 
 .waiting {

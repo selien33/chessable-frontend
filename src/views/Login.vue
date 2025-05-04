@@ -36,13 +36,14 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, inject } from 'vue';
 import { useRouter } from 'vue-router';
 
 export default {
   name: 'Login',
   setup() {
     const router = useRouter();
+    const auth = inject('auth');
     const username = ref('');
     const password = ref('');
     const error = ref('');
@@ -68,6 +69,8 @@ export default {
         const data = await response.json();
 
         if (response.ok) {
+          // Update auth state
+          await auth.checkAuth();
           router.push('/');
         } else {
           error.value = data.error || 'Login failed';

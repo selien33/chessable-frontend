@@ -1,18 +1,20 @@
 <template>
   <div class="chess-board-container">
+    <!-- Top player (depends on user's color) -->
     <div class="player-info">
-      <div class="player" :class="{ active: currentTurn === 'black' }">
-        <span class="player-name">{{ blackPlayer?.username || 'Black' }}</span>
-        <span class="player-color">Black</span>
+      <div class="player" :class="{ active: currentTurn === topPlayer.color }">
+        <span class="player-name">{{ topPlayer.username }}</span>
+        <span class="player-color">{{ topPlayer.colorText }}</span>
       </div>
     </div>
     
     <div ref="boardElement" class="chess-board"></div>
     
+    <!-- Bottom player (always the user) -->
     <div class="player-info">
-      <div class="player" :class="{ active: currentTurn === 'white' }">
-        <span class="player-name">{{ whitePlayer?.username || 'White' }}</span>
-        <span class="player-color">White</span>
+      <div class="player" :class="{ active: currentTurn === bottomPlayer.color }">
+        <span class="player-name">{{ bottomPlayer.username }}</span>
+        <span class="player-color">{{ bottomPlayer.colorText }}</span>
       </div>
     </div>
     
@@ -70,6 +72,43 @@ export default {
     // Computed property to check if it's the user's turn
     const isMyTurn = computed(() => {
       return props.currentTurn === props.userColor;
+    });
+    
+    // Computed properties for player positions based on board orientation
+    const topPlayer = computed(() => {
+      if (props.userColor === 'white') {
+        // User is white, so black is on top
+        return {
+          username: props.blackPlayer?.username || 'Black',
+          color: 'black',
+          colorText: 'Black'
+        };
+      } else {
+        // User is black, so white is on top
+        return {
+          username: props.whitePlayer?.username || 'White',
+          color: 'white',
+          colorText: 'White'
+        };
+      }
+    });
+    
+    const bottomPlayer = computed(() => {
+      if (props.userColor === 'white') {
+        // User is white, so white is on bottom
+        return {
+          username: props.whitePlayer?.username || 'White',
+          color: 'white',
+          colorText: 'White'
+        };
+      } else {
+        // User is black, so black is on bottom
+        return {
+          username: props.blackPlayer?.username || 'Black',
+          color: 'black',
+          colorText: 'Black'
+        };
+      }
     });
     
     // Following the example exactly
@@ -250,7 +289,9 @@ export default {
       boardElement,
       gameStatus,
       requestEvaluation,
-      isMyTurn
+      isMyTurn,
+      topPlayer,
+      bottomPlayer
     };
   }
 };

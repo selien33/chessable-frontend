@@ -6,7 +6,7 @@
         <span class="player-color">Black</span>
       </div>
     </div>
-    
+    <img src="/node_modules/cm-chessboard/assets/pieces/staunty.svg" alt="Chessboard" class="chessboard-image" />
     <div ref="boardElement" class="chess-board"></div>
     
     <div class="player-info">

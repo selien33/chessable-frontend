@@ -135,55 +135,70 @@ export default {
         event.chessboard.addLegalMovesMarkers(moves);
         return moves.length > 0;
       } else if (event.type === INPUT_EVENT_TYPE.validateMoveInput) {
-        const move = {from: event.squareFrom, to: event.squareTo};
-        if (event.promotion) {
-          move.promotion = event.promotion;
-        }
-        const result = chess.value.move(move);
+        // First check if this is a promotion move
+        let possibleMoves = chess.value.moves({square: event.squareFrom, verbose: true});
+        let isPromotionMove = false;
         
-        if (result) {
-          event.chessboard.state.moveInputProcess.then(() => {
-            event.chessboard.setPosition(chess.value.fen(), true).then(() => {
-              // Send move to server instead of making engine move
-              const moveString = result.from + result.to + (result.promotion || '');
-              props.socket.emit('make_move', {
-                game_id: props.gameId,
-                move: moveString
-              });
-            });
-          });
-        } else {
-          // promotion?
-          let possibleMoves = chess.value.moves({square: event.squareFrom, verbose: true});
-          for (const possibleMove of possibleMoves) {
-            if (possibleMove.promotion && possibleMove.to === event.squareTo) {
-              event.chessboard.showPromotionDialog(event.squareTo, COLOR[props.userColor], (result) => {
-                console.log("promotion result", result);
-                if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
-                  const promotionMove = chess.value.move({
-                    from: event.squareFrom, 
-                    to: event.squareTo, 
-                    promotion: result.piece.charAt(1)
-                  });
-                  event.chessboard.setPosition(chess.value.fen(), true);
-                  
-                  // Send move to server
-                  const moveString = promotionMove.from + promotionMove.to + promotionMove.promotion;
-                  props.socket.emit('make_move', {
-                    game_id: props.gameId,
-                    move: moveString
-                  });
-                } else {
-                  // promotion canceled
-                  event.chessboard.enableMoveInput(inputHandler, COLOR[props.userColor]);
-                  event.chessboard.setPosition(chess.value.fen(), true);
-                }
-              });
-              return true;
-            }
+        for (const possibleMove of possibleMoves) {
+          if (possibleMove.from === event.squareFrom && 
+              possibleMove.to === event.squareTo && 
+              possibleMove.promotion) {
+            isPromotionMove = true;
+            break;
           }
         }
-        return result;
+        
+        if (isPromotionMove) {
+          // Show promotion dialog
+          event.chessboard.showPromotionDialog(event.squareTo, COLOR[props.userColor], (result) => {
+            console.log("promotion result", result);
+            if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
+              // Convert piece to proper format (e.g., 'wq' -> 'q')
+              const promotionPiece = result.piece.charAt(1).toLowerCase();
+              
+              const promotionMove = chess.value.move({
+                from: event.squareFrom, 
+                to: event.squareTo, 
+                promotion: promotionPiece
+              });
+              
+              if (promotionMove) {
+                event.chessboard.setPosition(chess.value.fen(), true);
+                
+                // Send move to server
+                const moveString = promotionMove.from + promotionMove.to + promotionMove.promotion;
+                props.socket.emit('make_move', {
+                  game_id: props.gameId,
+                  move: moveString
+                });
+              }
+            } else {
+              // promotion canceled
+              event.chessboard.setPosition(chess.value.fen(), true);
+            }
+          });
+          return true;
+        } else {
+          // Regular move
+          const move = {from: event.squareFrom, to: event.squareTo};
+          const result = chess.value.move(move);
+          
+          if (result) {
+            event.chessboard.state.moveInputProcess.then(() => {
+              event.chessboard.setPosition(chess.value.fen(), true).then(() => {
+                // Send move to server
+                const moveString = result.from + result.to + (result.promotion || '');
+                props.socket.emit('make_move', {
+                  game_id: props.gameId,
+                  move: moveString
+                });
+              });
+            });
+            return true;
+          } else {
+            return false;
+          }
+        }
       } else if (event.type === INPUT_EVENT_TYPE.moveInputFinished) {
         if (event.legalMove) {
           event.chessboard.disableMoveInput();

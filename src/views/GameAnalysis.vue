@@ -14,11 +14,12 @@
       </div>
       
       <div class="board-container">
-        <ChessBoard
+        <AnalysisBoard
           :initial-fen="currentFen"
-          :read-only="true"
           :show-evaluation="true"
-          user-color="white"
+          :white-player="whitePlayer"
+          :black-player="blackPlayer"
+          :current-turn="currentTurn"
           @evaluation-request="requestEvaluation"
         />
       </div>
@@ -55,15 +56,15 @@
 </template>
 
 <script>
-import { ref, onMounted, inject, watch } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Chess } from 'chess.js';
-import ChessBoard from '../components/ChessBoard.vue';
+import AnalysisBoard from '../components/AnalysisBoard.vue';
 
 export default {
   name: 'GameAnalysis',
   components: {
-    ChessBoard
+    AnalysisBoard
   },
   setup() {
     const route = useRoute();
@@ -76,6 +77,28 @@ export default {
     const currentMoveIndex = ref(0);
     const currentFen = ref('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const evaluation = ref(null);
+
+    // Create player objects for the AnalysisBoard component
+    const whitePlayer = computed(() => {
+      if (!game.value) return null;
+      return {
+        id: game.value.white_player,
+        username: game.value.white_username
+      };
+    });
+
+    const blackPlayer = computed(() => {
+      if (!game.value) return null;
+      return {
+        id: game.value.black_player,
+        username: game.value.black_username
+      };
+    });
+
+    // Track whose turn it is based on the current position
+    const currentTurn = computed(() => {
+      return chess.value.turn() === 'w' ? 'white' : 'black';
+    });
 
     const fetchGame = async () => {
       try {
@@ -219,6 +242,9 @@ export default {
       moves,
       currentMoveIndex,
       evaluation,
+      whitePlayer,
+      blackPlayer,
+      currentTurn,
       getGameResult,
       formatDate,
       goToStart,

@@ -32,10 +32,12 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { Chessboard, INPUT_EVENT_TYPE, MARKER_TYPE } from 'cm-chessboard';
+import { Chessboard, INPUT_EVENT_TYPE, MARKER_TYPE, COLOR } from 'cm-chessboard';
 import { Markers } from 'cm-chessboard/src/extensions/markers/Markers.js';
+import { PromotionDialog, PROMOTION_DIALOG_RESULT_TYPE } from 'cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js';
 import 'cm-chessboard/assets/chessboard.css';
 import 'cm-chessboard/assets/extensions/markers/markers.css';
+import 'cm-chessboard/assets/extensions/promotion-dialog/promotion-dialog.css';
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 
 export default {
@@ -74,10 +76,18 @@ export default {
     const inputHandler = (event) => {
       console.log('Input event:', event);
       
-      // Handle move input started and validation
-      if (event.type === INPUT_EVENT_TYPE.moveInputStarted || 
-          event.type === INPUT_EVENT_TYPE.validateMoveInput) {
-        
+      // Ignore moving over square events
+      if (event.type === INPUT_EVENT_TYPE.movingOverSquare) {
+        return;
+      }
+      
+      // Remove legal move markers on all events except move input finished
+      if (event.type !== INPUT_EVENT_TYPE.moveInputFinished) {
+        event.chessboard.removeLegalMovesMarkers();
+      }
+      
+      // Handle move input started
+      if (event.type === INPUT_EVENT_TYPE.moveInputStarted) {
         // Check if it's the player's turn
         if (!isMyTurn.value) {
           console.log('Not my turn');
@@ -91,50 +101,75 @@ export default {
           return false;
         }
         
-        // Validate the move with chess.js
-        const move = chess.value.move({
-          from: event.squareFrom,
-          to: event.squareTo,
-          promotion: 'q' // Always promote to queen for simplicity
-        });
-        
-        if (move) {
-          // Move is valid, but undo it immediately
-          // The actual move will be made when confirmed
-          chess.value.undo();
-          return true;
-        } else {
-          return false;
-        }
+        // Get legal moves for this piece and add markers
+        const moves = chess.value.moves({ square: event.squareFrom, verbose: true });
+        event.chessboard.addLegalMovesMarkers(moves);
+        return moves.length > 0;
       }
       
-      // Handle move completion
-      if (event.type === INPUT_EVENT_TYPE.moveInputFinished) {
-        // Make the move for real this time
-        const move = chess.value.move({
-          from: event.squareFrom,
-          to: event.squareTo,
-          promotion: 'q' // Always promote to queen for simplicity
-        });
+      // Handle move validation
+      if (event.type === INPUT_EVENT_TYPE.validateMoveInput) {
+        const move = { from: event.squareFrom, to: event.squareTo };
+        let result = chess.value.move(move);
         
-        if (move) {
-          console.log('Valid move:', move);
-          currentFen.value = chess.value.fen();
-          
-          // Send the move to the server
-          props.socket.emit('make_move', {
-            game_id: props.gameId,
-            move: move.from + move.to + (move.promotion || '')
+        if (result) {
+          // Move is valid
+          event.chessboard.state.moveInputProcess.then(() => {
+            // Send the move to the server
+            const moveString = result.from + result.to + (result.promotion || '');
+            props.socket.emit('make_move', {
+              game_id: props.gameId,
+              move: moveString
+            });
           });
-          
-          return true;
         } else {
-          console.log('Invalid move');
-          return false;
+          // Check if this is a promotion move
+          const possibleMoves = chess.value.moves({ square: event.squareFrom, verbose: true });
+          for (const possibleMove of possibleMoves) {
+            if (possibleMove.promotion && possibleMove.to === event.squareTo) {
+              // Show promotion dialog
+              event.chessboard.showPromotionDialog(event.squareTo, props.userColor, (result) => {
+                console.log('Promotion result:', result);
+                if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
+                  // Make the move with promotion
+                  const promotionPiece = result.piece.charAt(1); // Get the piece type (q, r, b, n)
+                  const moveResult = chess.value.move({
+                    from: event.squareFrom,
+                    to: event.squareTo,
+                    promotion: promotionPiece
+                  });
+                  
+                  if (moveResult) {
+                    // Update the board position
+                    event.chessboard.setPosition(chess.value.fen(), true);
+                    
+                    // Send the move to the server
+                    const moveString = moveResult.from + moveResult.to + moveResult.promotion;
+                    props.socket.emit('make_move', {
+                      game_id: props.gameId,
+                      move: moveString
+                    });
+                  }
+                } else {
+                  // Promotion cancelled
+                  event.chessboard.setPosition(chess.value.fen(), true);
+                  event.chessboard.enableMoveInput(inputHandler);
+                }
+              });
+              return true;
+            }
+          }
         }
+        return result;
       }
       
-      return true;
+      // Handle move input finished
+      if (event.type === INPUT_EVENT_TYPE.moveInputFinished) {
+        if (event.legalMove) {
+          // Disable input while waiting for server response
+          event.chessboard.disableMoveInput();
+        }
+      }
     };
     
     const initializeBoard = () => {
@@ -154,7 +189,7 @@ export default {
         chess.value.reset();
       }
       
-      // Initialize cm-chessboard with markers extension
+      // Initialize cm-chessboard with markers and promotion dialog extensions
       board.value = new Chessboard(boardElement.value, {
         position: chess.value.fen(),
         orientation: props.userColor,
@@ -164,16 +199,20 @@ export default {
         style: {
           cssClass: "default",
           showCoordinates: true,
-          borderType: "thin"
+          borderType: "thin",
+          animationDuration: 300
         },
-        extensions: [{class: Markers}]
+        extensions: [
+          { class: Markers, props: { autoMarkers: MARKER_TYPE.square } },
+          { class: PromotionDialog }
+        ]
       });
       
       currentFen.value = chess.value.fen();
       console.log('Current FEN after initialization:', currentFen.value);
       
-      // Enable piece dragging if not read-only
-      if (!props.readOnly) {
+      // Enable piece dragging if not read-only and it's the user's turn
+      if (!props.readOnly && isMyTurn.value) {
         board.value.enableMoveInput(inputHandler);
       }
     };
@@ -185,6 +224,13 @@ export default {
         currentFen.value = data.fen;
         board.value.setPosition(currentFen.value, true);
         emit('turn-changed', data.turn);
+        
+        // Enable input if it's now the user's turn
+        if (data.turn === props.userColor) {
+          board.value.enableMoveInput(inputHandler);
+        } else {
+          board.value.disableMoveInput();
+        }
       });
       
       props.socket.on('game_over', (data) => {
@@ -197,6 +243,7 @@ export default {
         } else if (data.reason === 'disconnect') {
           gameStatus.value = `Opponent disconnected. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         }
+        board.value.disableMoveInput();
         emit('game-over', data);
       });
     };

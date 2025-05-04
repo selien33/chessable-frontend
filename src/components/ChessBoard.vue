@@ -62,6 +62,27 @@ export default {
     const initializeBoard = () => {
       console.log('Initializing board with FEN:', currentFen.value);
       
+      // Add debugging for sprite loading
+      const spriteUrl = '/node_modules/cm-chessboard/assets/pieces/staunty.svg';
+      console.log('Attempting to load sprite from:', spriteUrl);
+      
+
+      // Test if the sprite file is accessible
+      fetch(spriteUrl)
+        .then(response => {
+          console.log('Sprite file response status:', response.status);
+          console.log('Sprite file response headers:', [...response.headers.entries()]);
+          return response.text();
+        })
+        .then(text => {
+          console.log('Sprite file content (first 200 chars):', text.substring(0, 200));
+        })
+        .catch(error => {
+          console.error('Error loading sprite file:', error);
+        });
+      
+      console.log('Initializing board with FEN:', currentFen.value);
+      
       chess.value = new Chess();
       
       if (currentFen.value) {
@@ -181,9 +202,21 @@ export default {
     
     onMounted(() => {
       initializeBoard();
-      if (!props.readOnly) {
-        setupSocketListeners();
-      }
+      
+      // Debug shadow DOM
+      setTimeout(() => {
+        const boardElement = document.querySelector('.cm-chessboard');
+        console.log('Board element:', boardElement);
+        
+        const pieces = boardElement?.querySelectorAll('.piece');
+        console.log('Pieces found:', pieces?.length);
+        
+        pieces?.forEach((piece, index) => {
+          console.log(`Piece ${index}:`, piece);
+          console.log(`Has shadow root:`, piece.shadowRoot);
+          console.log(`Inner HTML:`, piece.innerHTML);
+        });
+      }, 1000);
     });
     
     onBeforeUnmount(() => {

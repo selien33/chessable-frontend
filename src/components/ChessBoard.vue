@@ -62,27 +62,6 @@ export default {
     const initializeBoard = () => {
       console.log('Initializing board with FEN:', currentFen.value);
       
-      // Add debugging for sprite loading
-      const spriteUrl = '/node_modules/cm-chessboard/assets/pieces/staunty.svg';
-      console.log('Attempting to load sprite from:', spriteUrl);
-      
-
-      // Test if the sprite file is accessible
-      fetch(spriteUrl)
-        .then(response => {
-          console.log('Sprite file response status:', response.status);
-          console.log('Sprite file response headers:', [...response.headers.entries()]);
-          return response.text();
-        })
-        .then(text => {
-          console.log('Sprite file content (first 200 chars):', text.substring(0, 200));
-        })
-        .catch(error => {
-          console.error('Error loading sprite file:', error);
-        });
-      
-      console.log('Initializing board with FEN:', currentFen.value);
-      
       chess.value = new Chess();
       
       if (currentFen.value) {
@@ -97,26 +76,25 @@ export default {
         chess.value.reset();
       }
       
-      // Initialize cm-chessboard with corrected configuration
+      // Use the public directory path
       board.value = new Chessboard(boardElement.value, {
         position: chess.value.fen(),
         orientation: props.userColor,
+        sprite: {
+          url: '/assets/pieces/staunty.svg'  // Changed from node_modules path
+        },
         style: {
-          pieces: {
-            file: 'staunty.svg'
-          }
+          cssClass: "default",
+          showCoordinates: true,
+          borderType: "thin"
         }
       });
       
       currentFen.value = chess.value.fen();
       console.log('Current FEN after initialization:', currentFen.value);
       
-      // Enable piece dragging if not read-only
       if (!props.readOnly) {
-        board.value.enableMoveInput((event) => {
-          // Handle move input here
-          return moveInputHandler(event);
-        });
+        board.value.enableMoveInput(handleMoveInput);
       }
     };
     

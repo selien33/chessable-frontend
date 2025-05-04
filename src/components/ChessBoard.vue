@@ -6,7 +6,7 @@
         <span class="player-color">Black</span>
       </div>
     </div>
-    <img src="/node_modules/cm-chessboard/assets/pieces/staunty.svg" alt="Chessboard" class="chessboard-image" />
+    
     <div ref="boardElement" class="chess-board"></div>
     
     <div class="player-info">
@@ -28,7 +28,7 @@
 
 <script>
 import { Chess } from 'chess.js';
-import { Chessboard, MARKER_TYPE } from 'cm-chessboard';
+import { Chessboard, INPUT_EVENT_TYPE } from 'cm-chessboard';
 import 'cm-chessboard/assets/chessboard.css';
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 
@@ -76,12 +76,12 @@ export default {
         chess.value.reset();
       }
       
-      // Use the public directory path
+      // Initialize cm-chessboard
       board.value = new Chessboard(boardElement.value, {
         position: chess.value.fen(),
         orientation: props.userColor,
         sprite: {
-          url: '/assets/pieces/staunty.svg'  // Changed from node_modules path
+          url: '/assets/pieces/staunty.svg'
         },
         style: {
           cssClass: "default",
@@ -93,50 +93,69 @@ export default {
       currentFen.value = chess.value.fen();
       console.log('Current FEN after initialization:', currentFen.value);
       
+      // Enable piece dragging if not read-only
       if (!props.readOnly) {
-        board.value.enableMoveInput(handleMoveInput);
+        board.value.enableMoveInput(inputHandler, props.userColor);
       }
     };
     
-    const moveInputHandler = (event) => {
+    const inputHandler = (event) => {
+      console.log('Input event:', event);
+      
+      // Only process the moveDone event
+      if (event.type !== INPUT_EVENT_TYPE.moveDone) {
+        return;
+      }
+      
       // Only allow moves if it's the user's turn
       if (props.currentTurn !== props.userColor) {
+        console.log('Not user turn, reverting');
         return false;
       }
       
-      const move = {
-        from: event.squareFrom,
-        to: event.squareTo,
-        promotion: event.piece ? event.piece.charAt(1) : undefined
-      };
+      // Handle promotion
+      let promotion = undefined;
+      const piece = chess.value.get(event.squareFrom);
       
-      // Check if promotion is needed
-      const piece = chess.value.get(move.from);
       if (piece && piece.type === 'p') {
-        const toRank = move.to[1];
-        if ((piece.color === 'w' && toRank === '8') || 
-            (piece.color === 'b' && toRank === '1')) {
-          move.promotion = 'q'; // Default to queen promotion
+        const fromRank = event.squareFrom[1];
+        const toRank = event.squareTo[1];
+        
+        // Check if this is a pawn promotion
+        if ((piece.color === 'w' && fromRank === '7' && toRank === '8') ||
+            (piece.color === 'b' && fromRank === '2' && toRank === '1')) {
+          // For now, always promote to queen
+          promotion = 'q';
         }
       }
       
+      // Try to make the move with chess.js
       try {
-        const result = chess.value.move(move);
-        if (result) {
+        const move = chess.value.move({
+          from: event.squareFrom,
+          to: event.squareTo,
+          promotion: promotion
+        });
+        
+        if (move) {
+          console.log('Valid move:', move);
           currentFen.value = chess.value.fen();
           
+          // Emit the move to the server
           props.socket.emit('make_move', {
             game_id: props.gameId,
-            move: result.from + result.to + (result.promotion || '')
+            move: move.from + move.to + (move.promotion || '')
           });
           
-          return true;
+          return true; // Accept the move
+        } else {
+          console.log('Invalid move');
+          return false; // Reject the move
         }
       } catch (e) {
-        console.error('Invalid move:', e);
+        console.error('Error making move:', e);
+        return false; // Reject the move
       }
-      
-      return false;
     };
     
     const setupSocketListeners = () => {
@@ -180,21 +199,9 @@ export default {
     
     onMounted(() => {
       initializeBoard();
-      
-      // Debug shadow DOM
-      setTimeout(() => {
-        const boardElement = document.querySelector('.cm-chessboard');
-        console.log('Board element:', boardElement);
-        
-        const pieces = boardElement?.querySelectorAll('.piece');
-        console.log('Pieces found:', pieces?.length);
-        
-        pieces?.forEach((piece, index) => {
-          console.log(`Piece ${index}:`, piece);
-          console.log(`Has shadow root:`, piece.shadowRoot);
-          console.log(`Inner HTML:`, piece.innerHTML);
-        });
-      }, 1000);
+      if (!props.readOnly) {
+        setupSocketListeners();
+      }
     });
     
     onBeforeUnmount(() => {
@@ -224,22 +231,11 @@ export default {
   margin: 20px 0;
 }
 
-/* Some additional styles for proper rendering */
-.chess-board :deep(.cm-chessboard) {
+/* Import cm-chessboard styles */
+:deep(.cm-chessboard) {
   width: 100% !important;
   border: 2px solid #333;
   border-radius: 4px;
-}
-
-.chess-board :deep(.cm-chessboard .board) {
-  width: 100%;
-}
-
-.chess-board :deep(.cm-chessboard .board .square) {
-  float: left;
-  position: relative;
-  width: 12.5%;
-  height: 12.5%;
 }
 
 .player-info {

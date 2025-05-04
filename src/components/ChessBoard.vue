@@ -82,7 +82,7 @@ export default {
         orientation: props.userColor,
         style: {
           pieces: {
-            file: '/node_modules/cm-chessboard/assets/pieces/staunty.svg'
+            file: 'staunty.svg'
           }
         }
       });

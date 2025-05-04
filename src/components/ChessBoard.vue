@@ -257,6 +257,7 @@ export default {
       });
       
       props.socket.on('game_over', (data) => {
+        // Set game status message
         if (data.reason === 'checkmate') {
           gameStatus.value = `Checkmate! ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         } else if (data.reason === 'stalemate') {
@@ -266,8 +267,14 @@ export default {
         } else if (data.reason === 'disconnect') {
           gameStatus.value = `Opponent disconnected. ${data.winner === props.whitePlayer.id ? 'White' : 'Black'} wins!`;
         }
+        
+        // Disable input immediately
         board.value.disableMoveInput();
-        emit('game-over', data);
+        
+        // Wait for the board animation to complete and give users time to see the final position
+        setTimeout(() => {
+          emit('game-over', data);
+        }, 2000); // 2 second delay to see the checkmate position
       });
     };
     
